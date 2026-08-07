@@ -1,0 +1,6 @@
+# 这些目录由 GitHub Actions 生成并发布到 gh-pages，不进 main 分支
+downloads/
+data/
+site/
+__pycache__/
+*.pyc

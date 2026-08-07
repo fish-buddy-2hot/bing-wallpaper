@@ -1,0 +1,49 @@
+name: Daily Bing Wallpaper
+
+on:
+  schedule:
+    # 09:00 UTC = 17:00 北京时间（Asia/Shanghai）
+    - cron: '0 9 * * *'
+  workflow_dispatch: {}   # 允许在 Actions 页面手动触发
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      # 把 gh-pages 上已抓的历史图片/清单先拿回来，避免覆盖累积
+      - name: Restore previous images from gh-pages
+        run: |
+          git fetch origin gh-pages || true
+          if git cat-file -e origin/gh-pages:downloads 2>/dev/null; then
+            git checkout origin/gh-pages -- downloads data 2>/dev/null || true
+          fi
+
+      - name: Run scraper (抓取近 3 天，幂等补抓漏掉的)
+        run: python bing_wallpaper.py --days 3
+
+      - name: Build site
+        run: |
+          mkdir -p site
+          cp index.html site/
+          cp -r downloads site/
+          cp -r data site/
+
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
+          force_orphan: true   # gh-pages 每次整页重写，历史不膨胀

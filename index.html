@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>必应每日壁纸</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1f2328;
+    --muted: #656d76;
+    --accent: #0969da;
+    --border: #d0d7de;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 28px 20px 18px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 6px; font-size: 22px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  #gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 16px 20px 40px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: zoom-in;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  }
+  .card img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    display: block;
+    background: #eaecef;
+  }
+  .card .meta { padding: 10px 12px 12px; }
+  .card .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .card .copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .card a { color: var(--accent); text-decoration: none; }
+  #status { text-align: center; color: var(--muted); padding: 40px; }
+  #lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.85);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 96vw; max-height: 92vh; border-radius: 6px; }
+  #lightbox .cap {
+    position: absolute; bottom: 18px; left: 0; right: 0; text-align: center;
+    color: #fff; font-size: 13px; padding: 0 20px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>必应每日壁纸</h1>
+  <p id="sub">由 GitHub Actions 每日自动抓取 · 图片存储于本仓库</p>
+</header>
+<main id="gallery"></main>
+<div id="status">加载中…</div>
+<div id="lightbox"><img id="lb-img" src="" alt=""><div class="cap" id="lb-cap"></div></div>
+
+<script>
+const gallery = document.getElementById("gallery");
+const status = document.getElementById("status");
+const lightbox = document.getElementById("lightbox");
+const lbImg = document.getElementById("lb-img");
+const lbCap = document.getElementById("lb-cap");
+
+fetch("./data/manifest.json")
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(render)
+  .catch(err => {
+    status.textContent = "清单加载失败：" + err.message +
+      "（请确认 GitHub Pages 已启用且 workflow 至少成功运行过一次）";
+  });
+
+function render(m) {
+  const items = (m.wallpapers || []).filter(w => w.images && w.images["1920x1080"]);
+  if (!items.length) { status.textContent = "暂无壁纸，等每日任务跑一次就有了。"; return; }
+  status.remove();
+  document.getElementById("sub").textContent =
+    `共 ${items.length} 张 · 由 GitHub Actions 每日自动抓取`;
+  items.forEach(w => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const thumb = w.images["1920x1080"];
+    const full = w.images["UHD"] || thumb;
+    card.innerHTML = `
+      <img loading="lazy" src="${thumb}" alt="${escapeHtml(w.title)}">
+      <div class="meta">
+        <div class="title">${escapeHtml(w.title || w.date)}</div>
+        <div class="copy">${escapeHtml(w.copyright || "")}
+          ${w.link ? `<br><a href="${w.link}" target="_blank" rel="noopener">在必应查看 ↗</a>` : ""}
+        </div>
+      </div>`;
+    card.addEventListener("click", () => openLightbox(full, w.copyright || w.title));
+    gallery.appendChild(card);
+  });
+}
+
+function openLightbox(src, cap) {
+  lbImg.src = src;
+  lbCap.textContent = cap || "";
+  lightbox.classList.add("open");
+}
+lightbox.addEventListener("click", () => lightbox.classList.remove("open"));
+document.addEventListener("keydown", e => { if (e.key === "Escape") lightbox.classList.remove("open"); });
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+</script>
+</body>
+</html>
