@@ -58,6 +58,16 @@
   .card .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
   .card .copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
   .card a { color: var(--accent); text-decoration: none; }
+  .card .actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; padding: 7px 12px; font-size: 13px;
+    cursor: pointer; text-decoration: none; line-height: 1.2;
+  }
+  .btn:hover { opacity: .9; }
+  .btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
   #status { text-align: center; color: var(--muted); padding: 40px; }
   #lightbox {
     position: fixed; inset: 0; background: rgba(0,0,0,.85);
@@ -106,15 +116,32 @@ function render(m) {
     card.className = "card";
     const thumb = w.images["1920x1080"];
     const full = w.images["UHD"] || thumb;
+    const hasUHD = !!w.images["UHD"];
     card.innerHTML = `
       <img loading="lazy" src="${thumb}" alt="${escapeHtml(w.title)}">
       <div class="meta">
         <div class="title">${escapeHtml(w.title || w.date)}</div>
         <div class="copy">${escapeHtml(w.copyright || "")}
-          ${w.link ? `<br><a href="${w.link}" target="_blank" rel="noopener">在必应查看 ↗</a>` : ""}
+          ${w.link ? `<br><a class="bing-link" href="${w.link}" target="_blank" rel="noopener">在必应查看 ↗</a>` : ""}
+        </div>
+        <div class="actions">
+          <button class="btn" data-res="UHD" ${hasUHD ? "" : "disabled title=\"仅提供高清版\""}>⬇ 下载原图${hasUHD ? "" : "（4K 暂缺）"}</button>
+          <button class="btn btn-ghost" data-res="1920x1080">⬇ 高清版</button>
         </div>
       </div>`;
     card.addEventListener("click", () => openLightbox(full, w.copyright || w.title));
+    // "在必应查看"链接不要触发灯箱
+    const link = card.querySelector(".bing-link");
+    if (link) link.addEventListener("click", e => e.stopPropagation());
+    // 下载按钮：阻止冒泡，触发同源下载
+    card.querySelectorAll(".btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        if (btn.disabled) return;
+        const res = btn.getAttribute("data-res");
+        triggerDownload(w.images[res] || thumb, downloadName(w, res));
+      });
+    });
     gallery.appendChild(card);
   });
 }
@@ -130,6 +157,23 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") lightbox.cla
 function escapeHtml(s) {
   return (s || "").replace(/[&<>"']/g, c =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// 生成安全的下载文件名：日期_标题_分辨率.jpg
+function downloadName(w, res) {
+  const base = (w.title || w.date || "bing-wallpaper")
+    .replace(/[\\/:*?"<>|]/g, "_").slice(0, 60);
+  return `${w.date || ""}_${base}_${res}.jpg`;
+}
+
+// 触发同源下载（图片与页面同属 gh-pages 源，download 属性生效）
+function triggerDownload(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 </script>
 </body>
