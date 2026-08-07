@@ -31,8 +31,8 @@ jobs:
             git checkout origin/gh-pages -- downloads data 2>/dev/null || true
           fi
 
-      - name: Run scraper (抓取近 3 天，幂等补抓漏掉的)
-        run: python bing_wallpaper.py --days 3
+      - name: Run scraper (抓取近 8 天窗口，幂等补抓漏掉的)
+        run: python bing_wallpaper.py --days 8
 
       - name: Build site
         run: |
