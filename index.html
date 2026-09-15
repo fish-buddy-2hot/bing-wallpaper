@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>必应每日壁纸</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --card: #ffffff;
+    --text: #1f2328;
+    --muted: #656d76;
+    --accent: #0969da;
+    --border: #d0d7de;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                 "Microsoft YaHei", Helvetica, Arial, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+  }
+  header {
+    padding: 28px 20px 18px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 6px; font-size: 22px; }
+  header p { margin: 0; color: var(--muted); font-size: 14px; }
+  #gallery {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding: 16px 20px 40px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    overflow: hidden;
+    cursor: zoom-in;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,.12);
+  }
+  .card img {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    object-fit: cover;
+    display: block;
+    background: #eaecef;
+  }
+  .card .meta { padding: 10px 12px 12px; }
+  .card .title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .card .copy { color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .card a { color: var(--accent); text-decoration: none; }
+  .card .actions { margin-top: 10px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: var(--accent); color: #fff; border: none;
+    border-radius: 8px; padding: 7px 12px; font-size: 13px;
+    cursor: pointer; text-decoration: none; line-height: 1.2;
+  }
+  .btn:hover { opacity: .9; }
+  .btn-ghost { background: transparent; color: var(--accent); border: 1px solid var(--border); }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  #status { text-align: center; color: var(--muted); padding: 40px; }
+  #lightbox {
+    position: fixed; inset: 0; background: rgba(0,0,0,.85);
+    display: none; align-items: center; justify-content: center; z-index: 50;
+  }
+  #lightbox.open { display: flex; }
+  #lightbox img { max-width: 96vw; max-height: 92vh; border-radius: 6px; }
+  #lightbox .cap {
+    position: absolute; bottom: 18px; left: 0; right: 0; text-align: center;
+    color: #fff; font-size: 13px; padding: 0 20px;
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>必应每日壁纸</h1>
+  <p id="sub">由 GitHub Actions 每日自动抓取 · 图片存储于本仓库</p>
+</header>
+<main id="gallery"></main>
+<div id="status">加载中…</div>
+<div id="lightbox"><img id="lb-img" src="" alt=""><div class="cap" id="lb-cap"></div></div>
+
+<script>
+const gallery = document.getElementById("gallery");
+const status = document.getElementById("status");
+const lightbox = document.getElementById("lightbox");
+const lbImg = document.getElementById("lb-img");
+const lbCap = document.getElementById("lb-cap");
+
+fetch("./data/manifest.json")
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
+  .then(render)
+  .catch(err => {
+    status.textContent = "清单加载失败：" + err.message +
+      "（请确认 GitHub Pages 已启用且 workflow 至少成功运行过一次）";
+  });
+
+function render(m) {
+  const items = (m.wallpapers || []).filter(w => w.images && w.images["1920x1080"]);
+  if (!items.length) { status.textContent = "暂无壁纸，等每日任务跑一次就有了。"; return; }
+  status.remove();
+  document.getElementById("sub").textContent =
+    `共 ${items.length} 张 · 由 GitHub Actions 每日自动抓取`;
+  items.forEach(w => {
+    const card = document.createElement("div");
+    card.className = "card";
+    const thumb = w.images["1920x1080"];
+    const full = w.images["UHD"] || thumb;
+    const hasUHD = !!w.images["UHD"];
+    card.innerHTML = `
+      <img loading="lazy" src="${thumb}" alt="${escapeHtml(w.title)}">
+      <div class="meta">
+        <div class="title">${escapeHtml(w.title || w.date)}</div>
+        <div class="copy">${escapeHtml(w.copyright || "")}
+          ${w.link ? `<br><a class="bing-link" href="${w.link}" target="_blank" rel="noopener">在必应查看 ↗</a>` : ""}
+        </div>
+        <div class="actions">
+          <button class="btn" data-res="UHD" ${hasUHD ? "" : "disabled title=\"仅提供高清版\""}>⬇ 下载原图${hasUHD ? "" : "（4K 暂缺）"}</button>
+          <button class="btn btn-ghost" data-res="1920x1080">⬇ 高清版</button>
+        </div>
+      </div>`;
+    card.addEventListener("click", () => openLightbox(full, w.copyright || w.title));
+    // "在必应查看"链接不要触发灯箱
+    const link = card.querySelector(".bing-link");
+    if (link) link.addEventListener("click", e => e.stopPropagation());
+    // 下载按钮：阻止冒泡，触发同源下载
+    card.querySelectorAll(".btn").forEach(btn => {
+      btn.addEventListener("click", e => {
+        e.stopPropagation();
+        if (btn.disabled) return;
+        const res = btn.getAttribute("data-res");
+        triggerDownload(w.images[res] || thumb, downloadName(w, res));
+      });
+    });
+    gallery.appendChild(card);
+  });
+}
+
+function openLightbox(src, cap) {
+  lbImg.src = src;
+  lbCap.textContent = cap || "";
+  lightbox.classList.add("open");
+}
+lightbox.addEventListener("click", () => lightbox.classList.remove("open"));
+document.addEventListener("keydown", e => { if (e.key === "Escape") lightbox.classList.remove("open"); });
+
+function escapeHtml(s) {
+  return (s || "").replace(/[&<>"']/g, c =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+}
+
+// 生成安全的下载文件名：日期_标题_分辨率.jpg
+function downloadName(w, res) {
+  const base = (w.title || w.date || "bing-wallpaper")
+    .replace(/[\\/:*?"<>|]/g, "_").slice(0, 60);
+  return `${w.date || ""}_${base}_${res}.jpg`;
+}
+
+// 触发同源下载（图片与页面同属 gh-pages 源，download 属性生效）
+function triggerDownload(url, filename) {
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+}
+</script>
+</body>
+</html>
